@@ -1,0 +1,32 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "cortex-debug",
+            "request": "launch",
+            "name": "Debug blinky",
+            "cwd": "${workspaceRoot}/examples/rp",
+            "executable": "${workspaceFolder}/examples/rp/target/thumbv6m-none-eabi/debug/wifi_blinky",
+            "preLaunchTask": "Build binary",
+            "servertype": "external",
+            // This may need to be gdb-multiarch depending on your system (i.e. Linux vs Mac)
+            "gdbPath": "gdb-multiarch",
+            // Connect to an already running OpenOCD instance
+            "gdbTarget": "localhost:3333",
+            // If you have the Pico SDK installed, allows the
+            // display of the RP2040 CPU registers in VS Code
+            //"svdFile": "${env:PICO_SDK_PATH}/src/rp2040/hardware_regs/rp2040.svd",
+            "runToEntryPoint": "main",
+            "preLaunchCommands": [
+                "monitor init",
+                "monitor reset init",
+                "monitor halt",
+            ],
+            // Work around for stopping at main on restart
+            "postRestartCommands": [
+                "break main",
+                "continue"
+            ],
+        },
+    ]
+}

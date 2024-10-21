@@ -1,0 +1,62 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Cargo run (Flash)",
+            "type": "shell",
+            "options": {
+                "cwd": "${workspaceFolder}/examples/rp",
+            },
+            "command": "cargo",
+            "args": [
+                "run",
+                "--release",
+                "--bin",
+                "wifi_blinky",
+            ],
+            "problemMatcher": [
+                "$rustc"
+            ],
+            "group": "none",
+        },
+        {
+            "label": "Cargo build",
+            "type": "shell",
+            "options": {
+                "cwd": "${workspaceFolder}/examples/rp",
+            },
+            "command": "cargo",
+            "args": [
+                "build",
+                "--bin",
+                "wifi_blinky",
+            ],
+            "problemMatcher": [
+                "$rustc"
+            ],
+            "group": "build",
+        },
+        {
+            "label": "Build binary",
+            "type": "shell",
+            "options": {
+                "cwd": "${workspaceFolder}/examples/rp",
+            },
+            "command": "arm-none-eabi-objcopy",
+            "args": [
+                "--output-target",
+                "binary",
+                "./target/thumbv6m-none-eabi/debug/wifi_blinky",
+                "./target/thumbv6m-none-eabi/debug/wifi_blinky.bin"
+            ],
+            "problemMatcher": [
+                "$rustc"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "dependsOn": "Cargo build"
+        }
+    ]
+}
