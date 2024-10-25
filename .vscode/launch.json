@@ -27,6 +27,54 @@
                 "break main",
                 "continue"
             ],
+            "rttConfig": {
+                "enabled": true,
+                "address": "auto",
+                "clearSearch": false,
+                "polling_interval": 20,
+                "rtt_start_retry": 20000,
+                "decoders": [
+                    {
+                        "label": "RTT channel 0",
+                        "port": 0,
+                        "timestamp": true,
+                        "type": "console"
+                    }
+                ]
+            },
+        },
+        {
+            "preLaunchTask": "Build binary",
+            "type": "probe-rs-debug",
+            "request": "launch",
+            "name": "probe-blinky",
+            "cwd": "${workspaceRoot}/examples/rp",
+            "chip": "rp2040",
+            "server": "127.0.0.1:3333",
+            // RP2040 doesn't support connectUnderReset
+            "connectUnderReset": false,
+            "speed": 4000,
+            "runtimeExecutable": "probe-rs",
+            "runtimeArgs": [
+                "dap-server"
+            ],
+            "flashingConfig": {
+                "flashingEnabled": true,
+                "haltAfterReset": false
+            },
+            "coreConfigs": [
+                {
+                    "coreIndex": 0,
+                    "programBinary": "${workspaceFolder}/examples/rp/target/thumbv6m-none-eabi/debug/wifi_blinky",
+                    "rttEnabled": true,
+                    // Uncomment this if you've downloaded the SVD from
+                    // https://github.com/raspberrypi/pico-sdk/raw/1.3.1/src/rp2040/hardware_regs/rp2040.svd
+                    // and placed it in the .vscode directory
+                    "svdFile": "./.vscode/rp2040.svd",
+                }
+            ],
+            "consoleLogLevel": "Info", //Error, Warn, Info, Debug, Trace
+            "wireProtocol": "Swd"
         },
     ]
 }
