@@ -32,3 +32,22 @@ fn test_multiple_yields() {
         yield_now().await;
     });
 }
+
+#[test]
+fn test_yield_with_computation() {
+    // Test that yield_now can be used to break up long computations
+    block_on(async {
+        let mut sum = 0;
+        
+        for i in 0..10 {
+            sum += i;
+            
+            // Yield every few iterations to allow other tasks to run
+            if i % 3 == 0 {
+                yield_now().await;
+            }
+        }
+        
+        assert_eq!(sum, 45); // 0+1+2+...+9 = 45
+    });
+}
