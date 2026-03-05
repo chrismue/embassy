@@ -1,0 +1,121 @@
+= Code explanation
+
+This page walks through the anatomy of a basic Embassy application line by line, so that you can understand exactly what each part does and why it is there.
+
+The full source code for this example lives in link:https://github.com/embassy-rs/embassy/tree/main/docs/examples/basic[docs/examples/basic].
+
+== Crate-level attributes
+
+[source,rust]
+----
+#![no_std]
+#![no_main]
+----
+
+`#![no_std]` tells the compiler not to link the Rust standard library (`std`).
+The standard library depends on an operating system for things like heap allocation, file I/O, and threading.
+Because Embassy targets bare-metal hardware with no OS, we use the smaller `core` library instead, which provides language primitives such as iterators, options, and results without any OS dependencies.
+
+`#![no_main]` disables the normal Rust entry point convention.
+The standard `fn main()` signature is part of the `std` runtime, which we are not using.
+Instead, our own entry point is supplied by the `#[embassy_executor::main]` macro further down the file.
+
+== Imports
+
+[source,rust]
+----
+use defmt::*;
+use embassy_executor::Spawner;
+use embassy_nrf::gpio::{Level, Output, OutputDrive};
+use embassy_time::{Duration, Timer};
+use {defmt_rtt as _, panic_probe as _}; // global logger
+----
+
+* `defmt` — a highly efficient logging framework for embedded targets.
+  Importing everything from `defmt` gives you macros such as `info!`, `warn!`, and `unwrap!`.
+* `embassy_executor::Spawner` — the handle passed to `main` that lets you spawn additional tasks into the executor.
+* `embassy_nrf::gpio` — GPIO types from the nRF HAL.
+  `Output` is a push-pull output pin; `Level` and `OutputDrive` configure its initial state and drive strength.
+* `embassy_time::{Duration, Timer}` — time abstractions.
+  `Duration` represents a span of time; `Timer` creates async delay futures.
+* `defmt_rtt` and `panic_probe` are only imported for their side effects: they register a global logger and a panic handler that send data over the debug probe (RTT), which is how log output appears in your terminal when using `probe-rs`.
+
+== Task declaration
+
+[source,rust]
+----
+#[embassy_executor::task]
+async fn blinker(mut led: Output<'static>, interval: Duration) {
+    loop {
+        led.set_high();
+        Timer::after(interval).await;
+        led.set_low();
+        Timer::after(interval).await;
+    }
+}
+----
+
+`#[embassy_executor::task]` is a procedural macro that transforms the async function into an Embassy task.
+At compile time, Embassy allocates static storage for exactly one instance of this task (you can raise this with `#[embassy_executor::task(pool_size = N)]`).
+Because the storage is static, no heap allocator is needed.
+
+The `async fn` returns a future.
+The Embassy executor polls that future until it completes.
+Inside the function, `led.set_high()` and `led.set_low()` drive the GPIO pin high and low to turn the LED on and off.
+
+`Timer::after(interval).await` is the key async primitive here.
+It creates a future that will be resolved after the given `Duration`.
+When you `.await` it, the current task is suspended — the executor can then run other tasks or put the CPU to sleep — and the task is automatically woken up once the timer fires.
+This is fundamentally different from a blocking delay (`cortex_m::asm::delay`), which spins the CPU and prevents any other work from happening.
+
+== Entry point
+
+[source,rust]
+----
+#[embassy_executor::main]
+async fn main(spawner: Spawner) {
+    let p = embassy_nrf::init(Default::default());
+    let led = Output::new(p.P0_13, Level::Low, OutputDrive::Standard);
+    unwrap!(spawner.spawn(blinker(led, Duration::from_millis(300))));
+}
+----
+
+`#[embassy_executor::main]` marks this async function as the application entry point.
+The macro expands to:
+
+. Create an Embassy `Executor` instance.
+. Wrap `main` itself as the first task.
+. Start the executor's run loop, which polls tasks cooperatively.
+
+The `Spawner` argument is injected by the macro and represents the executor that was just created.
+You use it to launch additional tasks.
+
+`embassy_nrf::init(Default::default())` initializes the nRF hardware abstraction layer with a default configuration and returns a `Peripherals` struct.
+Each field of `Peripherals` represents one peripheral, and Rust's ownership system ensures that each peripheral can only be given to one piece of code, preventing accidental sharing.
+
+`Output::new(p.P0_13, Level::Low, OutputDrive::Standard)` configures pin P0.13 as a push-pull output, starting low (LED off), with standard drive strength.
+Ownership of the pin is moved into the `Output` type, so it can safely be passed to the `blinker` task.
+
+`spawner.spawn(blinker(led, Duration::from_millis(300)))` does two things:
+
+* Calling `blinker(led, Duration::from_millis(300))` as a function does *not* execute the task body.
+  Instead, it returns a `SpawnToken` — a lightweight handle that identifies a freshly allocated task storage slot, ready to be submitted to the executor.
+* `spawner.spawn(token)` hands that token to the executor, which will begin polling the future the next time the run loop iterates.
+
+`unwrap!` (from `defmt`) panics with a helpful message if spawning fails.
+Spawning can fail if all pre-allocated task slots are already occupied — with `pool_size = 1` (the default), that means a second call to `blinker` would fail.
+
+== Summary
+
+[cols="1,3"]
+|===
+| Concept | What it does
+
+| `#![no_std]` | Removes the OS-dependent standard library; keeps only `core`.
+| `#![no_main]` | Disables the standard entry point; Embassy's macro provides its own.
+| `#[embassy_executor::task]` | Allocates static storage for the task and registers it with the executor.
+| `Timer::after(...).await` | Suspends the task without blocking; allows the CPU to sleep or run other tasks.
+| `#[embassy_executor::main]` | Creates the executor, spawns `main` as the first task, and starts the run loop.
+| `Peripherals` | Compile-time proof that each peripheral is owned by exactly one piece of code.
+| `spawner.spawn(...)` | Submits a task token to the executor so that it will begin polling.
+|===
